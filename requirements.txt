@@ -10,4 +10,4 @@ pypdf
 huggingface_hub==0.25.2
 pydantic==2.10.6
 python-dotenv
-langgraph-store-mongodb
+langgraph-checkpoint-mongodb
