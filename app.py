@@ -1,8 +1,8 @@
-from main_agent import react_graph_memory
 import gradio as gr
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
 import uuid
+from main_agent import react_graph_memory
 
 def process_file(cv_path):
     """Process link file pdf"""

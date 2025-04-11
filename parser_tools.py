@@ -10,6 +10,7 @@ from langgraph.types import Command
 from langchain_core.tools.base import InjectedToolCallId
 import dotenv
 dotenv.load_dotenv()
+import os
 
 @tool
 def update_cv_from_chat(state: Annotated[dict, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId]):
@@ -27,6 +28,8 @@ def update_cv_from_chat(state: Annotated[dict, InjectedState], tool_call_id: Ann
     model = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
 
     cv_extractor = create_extractor(
@@ -61,6 +64,8 @@ def update_jd_from_chat(state: Annotated[dict, InjectedState], tool_call_id: Ann
     model = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     jd_extractor = create_extractor(
         model,

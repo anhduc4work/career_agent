@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 from langgraph.types import Command
 import dotenv
 dotenv.load_dotenv()
+import os
 
 class CVJDMatchFeedback(BaseModel):
     job_title_relevance:     int = Field(..., ge=0, le=10, description="Score (0-10): How well does the candidate's experience align with the job title?")
@@ -61,6 +62,8 @@ def score_agent(state):
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     llm = llm.with_structured_output(CVJDMatchFeedback)
     response = llm.invoke([SystemMessage(score_instruction.format(cv = cv, jd = jd)), HumanMessage("Conduct scoring")])
@@ -75,6 +78,8 @@ def summarize_score_agent(state):
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     response = llm.invoke([SystemMessage(f"Summarize the evaluations and provide final feedback"), HumanMessage(f"Here the analysis of jobs: {jd_analysis}")])
     return response

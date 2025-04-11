@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import dotenv
 dotenv.load_dotenv()
-
+import os
 
 class JobCriteriaComparison(BaseModel):
     job_responsibilities: str = Field(..., description="Key responsibilities listed in the job")
@@ -50,6 +50,7 @@ def extract_agent(state):
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
     )
     llm = llm.with_structured_output(JobCriteriaComparison)
     response = llm.invoke([SystemMessage(analyze_instruction.format(jd = jd)), HumanMessage("Conduct scoring")])
@@ -78,6 +79,8 @@ def summarize_agent(state):
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     response = llm.invoke([SystemMessage(f"Summarize the evaluations and provide final feedback"), HumanMessage(f"Here the analysis of jobs: {jd_analysis}")])
     return {"messages": [response]}

@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langgraph.graph import START, END, StateGraph
 import dotenv
 dotenv.load_dotenv()
+import os
 
 class Feedback(BaseModel):
     issue: str = Field(description="The issue identified by the human reviewer")
@@ -112,6 +113,8 @@ def suggest_cv(state: SuggestChangeState):
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     structured_llm = llm.with_structured_output(Feedbacks)
 
@@ -185,6 +188,8 @@ def adjust_cv(state) -> ReviewedCV:
     llm = ChatTogether(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         temperature=0,
+        api_key=os.environ["TOGETHER_API_KEY"]
+
     )
     structured_llm = llm.with_structured_output(ReviewedCV)
 
