@@ -58,7 +58,7 @@ def agent(state):
     #     max_tokens= 2000,
     #     max_retries= 2, temperature=0,
     # )
-    model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPEN_API_KEY"]) 
+    model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPENAI_API_KEY"]) 
     model = model.bind_tools(tools)
 
 
