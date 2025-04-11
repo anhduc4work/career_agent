@@ -7,6 +7,8 @@ from langgraph.constants import Send
 from langchain_together import ChatTogether
 from pydantic import BaseModel, Field, model_validator
 from langgraph.types import Command
+import dotenv
+dotenv.load_dotenv()
 
 class CVJDMatchFeedback(BaseModel):
     job_title_relevance:     int = Field(..., ge=0, le=10, description="Score (0-10): How well does the candidate's experience align with the job title?")

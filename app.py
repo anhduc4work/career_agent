@@ -94,7 +94,7 @@ def regenerate_thread_id(choices):
 ################## UI ##################
 
 with gr.Blocks(fill_width=True) as demo:
-    with gr.Row(visible=True) as row1:
+    with gr.Row(visible=False) as row1:
         key = gr.Dropdown(
             choices=["OLLAMA_URL", "OPENAI_API_KEY"],
             label="Choose API Key",

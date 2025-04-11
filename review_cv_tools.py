@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langgraph.graph import START, END, StateGraph
-
+import dotenv
+dotenv.load_dotenv()
 
 class Feedback(BaseModel):
     issue: str = Field(description="The issue identified by the human reviewer")

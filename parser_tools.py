@@ -8,7 +8,8 @@ from trustcall import create_extractor
 from langchain_core.messages import ToolMessage, SystemMessage, AIMessage
 from langgraph.types import Command
 from langchain_core.tools.base import InjectedToolCallId
-
+import dotenv
+dotenv.load_dotenv()
 
 @tool
 def update_cv_from_chat(state: Annotated[dict, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId]):

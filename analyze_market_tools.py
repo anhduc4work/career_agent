@@ -8,6 +8,8 @@ from langchain_together import ChatTogether
 from langchain_core.tools.base import InjectedToolCallId
 from pydantic import BaseModel, Field
 from typing import List, Optional
+import dotenv
+dotenv.load_dotenv()
 
 
 class JobCriteriaComparison(BaseModel):

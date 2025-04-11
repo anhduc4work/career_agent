@@ -2,7 +2,8 @@
 from tools import tools
 import json
 from langgraph.prebuilt import ToolNode, tools_condition
-
+import dotenv
+dotenv.load_dotenv()
 
 ########## Tools ############
 def _handle_error(error = "") -> str:
