@@ -77,6 +77,45 @@ def respond(msg, config, chat_history):
     else:
         return gr.MultimodalTextbox(value=None), chat_history, gr.Textbox(label="CV Content", interactive=True, visible=True)
 
+
+def user(user_message, chat_history):
+    if user_message["files"]:
+        file_content = process_file(user_message["files"][0])
+        return gr.MultimodalTextbox(value=None), chat_history + [{"role": "user", 
+                                            "content": "File included", 
+                                            "metadata": {
+                                                "title": user_message["text"],
+                                                         },
+                                            "options": [{"file_content": file_content}]}], file_content
+    else:
+        return gr.MultimodalTextbox(value=None), chat_history + [{"role": "user", 
+                                            "content": user_message["text"],}], gr.Textbox(label="CV Content", interactive=True, visible=True)
+
+import time
+def bot(config, chat_history):
+    # if file
+    if chat_history[-1].get("options", ""):
+        state = {
+            "messages": [HumanMessage(chat_history[-1]["content"])],
+            "cv": chat_history[-1]["options"][0]["file_content"], 
+        }
+    else:
+        state = {
+            "messages": [HumanMessage(chat_history[-1]["content"])],
+        }
+    print(config)
+    bot_message = react_graph_memory.invoke(state, config)
+
+    chat_history.append({"role": "assistant", "content": ""})
+    for character in bot_message["messages"][-1].content:
+        chat_history[-1]['content'] += character
+        time.sleep(0.005)
+        yield chat_history
+
+
+
+
+
 # from difflib import Differ
 # def diff_texts(text1, text2):
 #     d = Differ()
@@ -111,33 +150,36 @@ with gr.Blocks(fill_width=True) as demo:
     gr.Markdown("# Career Agent")
     with gr.Row() as row2:  
         with gr.Column(scale = 1):   
-            thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
-            thread_id = gr.Dropdown(
-                label="Thread ID",
-                value=initial_thread_id,
-                choices=[initial_thread_id],
-                interactive=True,
-                scale=4,         
-            )
-
-            user_choices_state = gr.State([initial_user_id])  # Gradio state to track the choices
-            user_id = gr.Dropdown(
-                label="User ID",
-                value=initial_user_id,
-                choices=[initial_user_id],
-                interactive=True,
-                scale=4,        
-            )
+            
             with gr.Row():
-                renew_thread = gr.Button("New Thread", scale=0, size="sm")
-                renew_user = gr.Button("New Identity", scale=0, size="sm")
+                thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
+                thread_id = gr.Dropdown(
+                    label="Thread ID",
+                    value=initial_thread_id,
+                    choices=[initial_thread_id],
+                    interactive=True,
+                    scale=4,         
+                )
+                renew_thread = gr.Button("+", scale=0, size="sm",)
 
-                update = gr.Button("Update & Start")
+            with gr.Row():
+                user_choices_state = gr.State([initial_user_id])  # Gradio state to track the choices
+                user_id = gr.Dropdown(
+                    label="User ID",
+                    value=initial_user_id,
+                    choices=[initial_user_id],
+                    interactive=True,
+                    scale=4,    
+                
+                )
+                renew_user = gr.Button("+", scale=0, size="sm")
+
+            update = gr.Button("Update & Start")
             
             config = gr.JSON(visible=False, value = {"configurable":{"thread_id": initial_thread_id, "user_id": initial_user_id}})
             
         with gr.Column(scale=4):
-            chatbot = gr.Chatbot(type="messages",)
+            chatbot = gr.Chatbot(type="messages", show_copy_button=True,)
             with gr.Row():  
                 msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
 
@@ -168,13 +210,14 @@ with gr.Blocks(fill_width=True) as demo:
 
     # update drop list
     renew_thread.click(regenerate_id, [thread_choices_state], [thread_id, thread_choices_state])
-    renew_user.click(regenerate_id, [user_choices_state], [thread_id, user_choices_state])
+    renew_user.click(regenerate_id, [user_choices_state], [user_id, user_choices_state])
 
     # gen new thread id
     reload_new_cv_button.click(check_for_new_cv, inputs=[config], outputs=[new_cv_text])
 
     # submit message
-    msg.submit(respond, [msg, config, chatbot], [msg, chatbot, cv_text])  # func - input - output
+    # msg.submit(respond, [msg, config, chatbot], [msg, chatbot, cv_text])  # func - input - output
+    msg.submit(user, [msg, chatbot], [msg, chatbot, cv_text]).then(bot, [config, chatbot], [chatbot])  # func - input - output
 
     # update UI to thread id
     update.click(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
