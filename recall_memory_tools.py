@@ -25,8 +25,9 @@ def recall_memory(query: str, config: RunnableConfig, store: Annotated[BaseStore
         related_messages = store.search(namespace, query=query, limit=3)
         threshold = 0.5
         info = "\n".join([d.value["data"] for d in related_messages if d.score > threshold])
+        print(info)
         if info:
             return info
         else:
             return "No relevant data"
-    return "User have not provide id"
+    return "User have not provide/submit id so that this memory recall tool not work for them"

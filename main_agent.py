@@ -39,7 +39,7 @@ Here is the conversation to sum up:
 {conversation}"""
 def filter_and_save_messages(state, config, store):
     all_messages = state["messages"]
-    if len(all_messages) >= 4:
+    if len(all_messages) >= 6:
         print("--filter--")
         # Save all but the 2 most recent messages to store
         messages_to_remove = all_messages[:-2]
@@ -101,7 +101,7 @@ def main_agent(state):
     """
     print("---CALL AGENT---")        
     messages = state["messages"]
-
+    print("n_mess: ", len(messages))
     # handle error
     if isinstance(messages[-1], ToolMessage):
         try:
@@ -113,7 +113,8 @@ def main_agent(state):
                 )
         except Exception:
             pass
-                
+    
+    print("memo: ", state.get("chat_history_summary", ""))
     
     model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPENAI_API_KEY"]) 
     model = model.bind_tools(tools)

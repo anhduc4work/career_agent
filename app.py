@@ -34,9 +34,9 @@ def set_environment(key, value):
     print(f"Environment variable set: {key}")
     pass
 
-def update_config_and_ui(thread_id):
+def update_config_and_ui(thread_id, user_id):
     """Update config and its state"""
-    config = {"configurable":{"thread_id": thread_id}}
+    config = {"configurable":{"thread_id": thread_id, "user_id": user_id}}
     state = react_graph_memory.get_state(config).values
     chat_history = []
     if state:
@@ -66,7 +66,7 @@ def respond(msg, config, chat_history):
             "messages": [HumanMessage(msg["text"])],
         }
 
-    print(state, config)
+    print(config)
     bot_message = react_graph_memory.invoke(state, config)
     
     chat_history.append({"role": "user", "content": msg["text"]})
@@ -85,9 +85,10 @@ def respond(msg, config, chat_history):
 #         for token in d.compare(text1, text2)
 #     ]
 
-initial_id = str(uuid.uuid4())
+initial_thread_id = str(uuid.uuid4())
+initial_user_id = str(uuid.uuid4())
 
-def regenerate_thread_id(choices):
+def regenerate_id(choices):
     new_id = str(uuid.uuid4())
     choices.append(new_id)
     return gr.update(value=new_id, choices=choices), choices
@@ -110,20 +111,30 @@ with gr.Blocks(fill_width=True) as demo:
     gr.Markdown("# Career Agent")
     with gr.Row() as row2:  
         with gr.Column(scale = 1):   
-            choices_state = gr.State([initial_id])  # Gradio state to track the choices
+            thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
             thread_id = gr.Dropdown(
                 label="Thread ID",
-                value=initial_id,
-                choices=[initial_id],
+                value=initial_thread_id,
+                choices=[initial_thread_id],
                 interactive=True,
-                allow_custom_value=True,
                 scale=4,         
             )
+
+            user_choices_state = gr.State([initial_user_id])  # Gradio state to track the choices
+            user_id = gr.Dropdown(
+                label="User ID",
+                value=initial_user_id,
+                choices=[initial_user_id],
+                interactive=True,
+                scale=4,        
+            )
             with gr.Row():
-                renew = gr.Button("New Thread", scale=0, size="sm")
+                renew_thread = gr.Button("New Thread", scale=0, size="sm")
+                renew_user = gr.Button("New Identity", scale=0, size="sm")
+
                 update = gr.Button("Update & Start")
             
-            config = gr.JSON(visible=False, value = {"configurable":{"thread_id": initial_id}})
+            config = gr.JSON(visible=False, value = {"configurable":{"thread_id": initial_thread_id, "user_id": initial_user_id}})
             
         with gr.Column(scale=4):
             chatbot = gr.Chatbot(type="messages",)
@@ -156,7 +167,8 @@ with gr.Blocks(fill_width=True) as demo:
     # new_cv_text.change(diff_texts, [cv_text, new_cv_text], [cp])
 
     # update drop list
-    renew.click(regenerate_thread_id, [choices_state], [thread_id, choices_state])
+    renew_thread.click(regenerate_id, [thread_choices_state], [thread_id, thread_choices_state])
+    renew_user.click(regenerate_id, [user_choices_state], [thread_id, user_choices_state])
 
     # gen new thread id
     reload_new_cv_button.click(check_for_new_cv, inputs=[config], outputs=[new_cv_text])
@@ -165,7 +177,7 @@ with gr.Blocks(fill_width=True) as demo:
     msg.submit(respond, [msg, config, chatbot], [msg, chatbot, cv_text])  # func - input - output
 
     # update UI to thread id
-    update.click(update_config_and_ui, [thread_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
+    update.click(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
 
     # set environment key
     # submit_url.click(set_environment, inputs = [key, value],)
