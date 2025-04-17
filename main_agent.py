@@ -4,6 +4,7 @@ import json
 from langgraph.prebuilt import ToolNode, tools_condition
 import dotenv
 dotenv.load_dotenv()
+from langchain_core.runnables import RunnableConfig
 
 ########## Tools ############
 def _handle_error(error = "") -> str:
@@ -39,21 +40,11 @@ Here is the conversation to sum up:
 {conversation}"""
 def filter_and_save_messages(state, config, store):
     all_messages = state["messages"]
-    if len(all_messages) >= 6:
-        print("--filter--")
-        # Save all but the 2 most recent messages to store
-        messages_to_remove = all_messages[:-2]
+    if len(all_messages) % 12 > 8:
 
-        print("-save-")
+        messages_to_sum = all_messages[-12:-6]
 
-        user_id = config["configurable"].get("user_id","")
-        # 1, if there is user_id, personalize
-        if user_id:
-            namespace = ("chat_history", user_id)
-            for m in messages_to_remove:
-                store.put(namespace, m.id, {"data": m.type+ ": "+ m.content })
-        
-        # 2, Summarize messages:
+        # 1, Summarize messages:
         print("-sum-")
 
         current_summary = state.get("chat_history_summary", "")
@@ -64,14 +55,21 @@ def filter_and_save_messages(state, config, store):
         )
         updated_summary = model.invoke([SystemMessage(memo_instruction.format(
             current_memo = current_summary,
-            conversation = messages_to_remove
+            conversation = messages_to_sum
         )), HumanMessage("Do it")])
 
-        print("-del-")
+        # 2, if there is user_id, personalize
+        print("-save-")
 
-        # 3, Delete all but the 2 most recent messages
-        delete_messages = [RemoveMessage(id=m.id) for m in messages_to_remove]
-        return {"messages": delete_messages, "chat_history_summary": updated_summary.content}
+        user_id = config["configurable"].get("user_id","")
+        if user_id:
+            namespace = ("chat_history", user_id)
+            for m in messages_to_sum:
+                store.put(namespace, m.id, {"data": m.type+ ": "+ m.content })
+
+            store.put(namespace, "user_info", {"data": updated_summary.content})
+            
+        return {"chat_history_summary": updated_summary.content}
     else:
         # just pass
         return 
@@ -89,19 +87,23 @@ agent_instruction = """You are a helpful AI assistant, collaborating with other 
     {cv}
     Here is the content of job description that user mannually upload (this can be empty is they haven't upload):
     {jd}
+    Here is your summary of recent chat with user: {thread_memory}
+    Here is your memory (it may be empty): {user_info}
     If you have memory for this user, use it to personalize your responses.
-    Here is the memory (it may be empty): {memory}
     """.strip()
 
 
-def main_agent(state):
+def main_agent(state, config: RunnableConfig, store):
     """
     Invokes the agent model to generate a response based on the current state. Given
     the question, it will decide to retrieve using the retriever tool, or simply end.
     """
     print("---CALL AGENT---")        
-    messages = state["messages"]
+    messages = state["messages"][-6:]
     print("n_mess: ", len(messages))
+
+    user_id = config["configurable"].get("user_id","")
+    namespace = ("chat_history", user_id)
     # handle error
     if isinstance(messages[-1], ToolMessage):
         try:
@@ -115,6 +117,7 @@ def main_agent(state):
             pass
     
     print("memo: ", state.get("chat_history_summary", ""))
+    print("user_info: ", store.get(namespace, "user_info"))
     
     model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPENAI_API_KEY"]) 
     model = model.bind_tools(tools)
@@ -122,7 +125,10 @@ def main_agent(state):
         tool_names = "\n".join([tool.name + ": " + tool.description for tool in tools]), 
         cv = state.get("cv", ""),
         jd = state.get("jd", ""),
-        memory = state.get("chat_history_summary", "")))] + messages)
+        user_info = store.get(namespace, "user_info"),
+        thread_memory = state.get("chat_history_summary", "")))] + messages)
+    
+    
     return {"messages": [response], "sender": "agent"}
 
 

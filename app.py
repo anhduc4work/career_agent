@@ -52,80 +52,80 @@ def update_config_and_ui(thread_id, user_id):
         return "", config, "Not avaiable", "Not avaiable"
 
 
-
-def respond(msg, config, chat_history):
-    # read input file (cv)
-    if msg["files"]:
-        cv = process_file(msg["files"][0])
-        state = {
-            "messages": [HumanMessage(msg["text"])],
-            "cv": cv,
-        }
-    else:
-        state = {
-            "messages": [HumanMessage(msg["text"])],
-        }
-
-    print(config)
-    bot_message = react_graph_memory.invoke(state, config)
-    
-    chat_history.append({"role": "user", "content": msg["text"]})
-    chat_history.append({"role": "assistant", "content": bot_message["messages"][-1].content})
-
-    if msg["files"]:
-        return gr.MultimodalTextbox(value=None), chat_history, cv
-    else:
-        return gr.MultimodalTextbox(value=None), chat_history, gr.Textbox(label="CV Content", interactive=True, visible=True)
-
-
 def user(user_message, chat_history):
+    print("-u-")
     if user_message["files"]:
         file_content = process_file(user_message["files"][0])
-        return gr.MultimodalTextbox(value=None), chat_history + [{"role": "user", 
-                                            "content": "File included", 
-                                            "metadata": {
-                                                "title": user_message["text"],
-                                                         },
-                                            "options": [{"file_content": file_content}]}], file_content
+        return gr.MultimodalTextbox(value=None), chat_history + [
+            {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
+            {"role": "user", "content": file_content, "metadata": {"title": "File included", "id": str(uuid.uuid4())}},            
+            ], file_content
     else:
-        return gr.MultimodalTextbox(value=None), chat_history + [{"role": "user", 
-                                            "content": user_message["text"],}], gr.Textbox(label="CV Content", interactive=True, visible=True)
+        return gr.MultimodalTextbox(value=None), chat_history + [
+            {"role": "user", "content": user_message["text"], "metadata": {"id": str(uuid.uuid4())}},
+            ],   gr.Textbox(label="CV Content", interactive=True, visible=True)
 
 import time
 def bot(config, chat_history):
+    print("-b-")
     # if file
-    if chat_history[-1].get("options", ""):
+    last_message = chat_history[-1]
+    if last_message["metadata"].get("title", ""):
         state = {
-            "messages": [HumanMessage(chat_history[-1]["content"])],
-            "cv": chat_history[-1]["options"][0]["file_content"], 
+            "messages": [HumanMessage(chat_history[-2]["content"], id = chat_history[-2]["metadata"]["id"])],
+            "cv": last_message["content"], 
         }
     else:
         state = {
-            "messages": [HumanMessage(chat_history[-1]["content"])],
+            "messages": [HumanMessage(last_message["content"], id = last_message["metadata"]["id"])],
         }
     print(config)
     bot_message = react_graph_memory.invoke(state, config)
 
-    chat_history.append({"role": "assistant", "content": ""})
+    chat_history.append({"role": "assistant", "content": "", "metadata": {"id":bot_message["messages"][-1].id}})
     for character in bot_message["messages"][-1].content:
         chat_history[-1]['content'] += character
-        time.sleep(0.005)
+        time.sleep(0.001)
         yield chat_history
 
+    chat_history[-1]['content'] = bot_message["messages"][-1].content
+    return chat_history
+
+def handle_edit(history, edit_data: gr.EditData):
+    new_history = history[:edit_data.index]
+    id = history[edit_data.index]["metadata"]["id"]
+    new_history.append({"role": "user", "content": edit_data.value, "metadata": {"id": id}})
+    return new_history
+
+def fork_messages(config, chat_history):
+    hist = react_graph_memory.get_state_history(config)
+    last_message = chat_history[-1]
+
+    for i, s in enumerate(hist):
+        if i%2==1:
+            pass
+        else:
+            if s.values["messages"][-1].id == last_message["metadata"]["id"]:
+                to_fork = s.config
+                break
+
+    # update
+    fork_config = react_graph_memory.update_state(to_fork,
+                        {"messages": [HumanMessage(content='do you know my name', 
+                               id=last_message["metadata"]["id"])]},)
+    
+    fork_config["configurable"]["user_id"] = config["configurable"]["user_id"]
+    return fork_config
+
+def clear_config(config):
+    # clear checkpoint_id if exist:
+    if config["configurable"].get("checkpoint_id", ""):
+        config["configurable"].pop("checkpoint_id")
+    return config
 
 
-
-
-# from difflib import Differ
-# def diff_texts(text1, text2):
-#     d = Differ()
-#     return [
-#         (token[2:], token[0] if token[0] != " " else None)
-#         for token in d.compare(text1, text2)
-#     ]
-
-initial_thread_id = str(uuid.uuid4())
 initial_user_id = str(uuid.uuid4())
+initial_thread_id = str(uuid.uuid4())
 
 def regenerate_id(choices):
     new_id = str(uuid.uuid4())
@@ -162,6 +162,7 @@ with gr.Blocks(fill_width=True) as demo:
                 )
                 renew_thread = gr.Button("+", scale=0, size="sm",)
 
+
             with gr.Row():
                 user_choices_state = gr.State([initial_user_id])  # Gradio state to track the choices
                 user_id = gr.Dropdown(
@@ -169,21 +170,21 @@ with gr.Blocks(fill_width=True) as demo:
                     value=initial_user_id,
                     choices=[initial_user_id],
                     interactive=True,
-                    scale=4,    
+                    scale=4,  
                 
                 )
-                renew_user = gr.Button("+", scale=0, size="sm")
+                renew_user = gr.Button("+", scale=0, size="sm",)
 
-            update = gr.Button("Update & Start")
+            # update = gr.Button("Update & Start")
             
             config = gr.JSON(visible=False, value = {"configurable":{"thread_id": initial_thread_id, "user_id": initial_user_id}})
             
         with gr.Column(scale=4):
-            chatbot = gr.Chatbot(type="messages", show_copy_button=True,)
+            chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
             with gr.Row():  
                 msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
 
-    with gr.Row() as row3:
+    with gr.Row(visible = False) as row3:
         gr.Markdown("# Underthehood")
         reload_new_cv_button = gr.Button("Reload")
         download_cv_button = gr.Button("Download")
@@ -215,15 +216,20 @@ with gr.Blocks(fill_width=True) as demo:
     # gen new thread id
     reload_new_cv_button.click(check_for_new_cv, inputs=[config], outputs=[new_cv_text])
 
+    # chatbot.undo(edit, chatbot, chatbot)
+    chatbot.edit(handle_edit, chatbot, chatbot).then(fork_messages, [config, chatbot], [config]).then(bot, [config, chatbot], [chatbot]).then(clear_config, [config], [config])
+    
     # submit message
     # msg.submit(respond, [msg, config, chatbot], [msg, chatbot, cv_text])  # func - input - output
     msg.submit(user, [msg, chatbot], [msg, chatbot, cv_text]).then(bot, [config, chatbot], [chatbot])  # func - input - output
 
     # update UI to thread id
-    update.click(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
+    # update.click(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
 
     # set environment key
     # submit_url.click(set_environment, inputs = [key, value],)
+    thread_id.change(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
+    user_id.change(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
 
 
 demo.launch(share=True)
