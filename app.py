@@ -124,13 +124,43 @@ def clear_config(config):
     return config
 
 
-initial_user_id = str(uuid.uuid4())
-initial_thread_id = str(uuid.uuid4())
+initial_user_id = "Default User"
+initial_thread_id = "Default Thread"
 
 def regenerate_id(choices):
     new_id = str(uuid.uuid4())
     choices.append(new_id)
     return gr.update(value=new_id, choices=choices), choices
+
+def db_add(user_id, thread_id):
+    from psycopg import connect
+    conn = connect("dbname=postgres user=anhduc213 password=200103 host=localhost port=5432", autocommit=True)
+    cursor = conn.cursor()
+    cursor.execute("""INSERT INTO user_thread (user_id, thread) VALUES (%s, %s)""", (user_id, thread_id))
+    pass
+
+def gen_user(user_choices):
+    """Add user list, change thread list """
+    new_user_id = str(uuid.uuid4())
+    new_thread_id = str(uuid.uuid4())
+    user_choices.append(new_user_id)
+    print(new_user_id, new_thread_id)
+    # add to db
+    db_add(new_user_id, new_thread_id)
+
+    # update choice for user and thread
+    return gr.update(value=new_user_id, choices=user_choices), \
+            user_choices, \
+            gr.update(value=new_thread_id, choices=[new_thread_id]), \
+            [new_thread_id]
+
+def gen_thread(thread_choices, user_id):
+    new_thread_id = str(uuid.uuid4())
+    thread_choices.append(new_thread_id)
+    print(user_id, new_thread_id)
+    db_add(user_id, new_thread_id)
+
+    return gr.update(value=new_thread_id, choices=thread_choices), thread_choices
 
 ################## UI ##################
 
@@ -152,28 +182,29 @@ with gr.Blocks(fill_width=True) as demo:
         with gr.Column(scale = 1):   
             
             with gr.Row():
-                thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
-                thread_id = gr.Dropdown(
-                    label="Thread ID",
-                    value=initial_thread_id,
-                    choices=[initial_thread_id],
-                    interactive=True,
-                    scale=4,         
-                )
-                renew_thread = gr.Button("+", scale=0, size="sm",)
-
-
-            with gr.Row():
                 user_choices_state = gr.State([initial_user_id])  # Gradio state to track the choices
                 user_id = gr.Dropdown(
                     label="User ID",
                     value=initial_user_id,
                     choices=[initial_user_id],
                     interactive=True,
-                    scale=4,  
-                
+                    # scale=4,
+                    allow_custom_value=True
                 )
-                renew_user = gr.Button("+", scale=0, size="sm",)
+                add_user = gr.Button("+", scale=0, size="sm",)
+
+            with gr.Row():
+                thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
+                thread_id = gr.Dropdown(
+                    label="Thread ID",
+                    value=initial_thread_id,
+                    choices=[initial_thread_id],
+                    interactive=True,
+                    # scale=4,         
+                )
+                add_thread = gr.Button("+", scale=0, size="sm",)
+
+
 
             # update = gr.Button("Update & Start")
             
@@ -210,9 +241,10 @@ with gr.Blocks(fill_width=True) as demo:
     # new_cv_text.change(diff_texts, [cv_text, new_cv_text], [cp])
 
     # update drop list
-    renew_thread.click(regenerate_id, [thread_choices_state], [thread_id, thread_choices_state])
-    renew_user.click(regenerate_id, [user_choices_state], [user_id, user_choices_state])
-
+    # add_thread.click(regenerate_id, [thread_choices_state], [thread_id, thread_choices_state])
+    # add_user.click(regenerate_id, [user_choices_state], [user_id, user_choices_state])
+    add_user.click(gen_user, [user_choices_state], [user_id, user_choices_state, thread_id, thread_choices_state])
+    add_thread.click(gen_thread, [thread_choices_state, user_id], [thread_id, thread_choices_state])
     # gen new thread id
     reload_new_cv_button.click(check_for_new_cv, inputs=[config], outputs=[new_cv_text])
 
@@ -227,9 +259,23 @@ with gr.Blocks(fill_width=True) as demo:
     # update.click(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])  # func - input - output
 
     # set environment key
+    def check_available_thread(user_id):
+        from psycopg import connect
+        conn = connect("dbname=postgres user=anhduc213 password=200103 host=localhost port=5432", autocommit=True)
+        cursor = conn.cursor()
+        cursor.execute(f"""SELECT * FROM user_thread WHERE user_id = %s""", (user_id,))
+        rows = cursor.fetchall()
+        if rows:
+            avai_thread = [row[2] for row in rows]
+            return gr.update(value=avai_thread[0], choices=avai_thread), avai_thread
+        else:
+            new_thread_id = str(uuid.uuid4()) 
+            db_add(user_id, new_thread_id)
+
+            return gr.update(value=new_thread_id, choices=[new_thread_id]), [new_thread_id]
     # submit_url.click(set_environment, inputs = [key, value],)
+    user_id.change(check_available_thread, [user_id], [thread_id, thread_choices_state]).then(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
     thread_id.change(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
-    user_id.change(update_config_and_ui, [thread_id, user_id], [chatbot, config, cv_text, new_cv_text])
 
 
 demo.launch(share=True)

@@ -10,5 +10,6 @@ pypdf
 huggingface_hub
 pydantic==2.10.6
 python-dotenv
-langgraph-checkpoint-mongodb
+# langgraph-checkpoint-mongodb
 langgraph-checkpoint-postgres
+langchain_postgres

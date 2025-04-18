@@ -29,9 +29,9 @@ class AgentState(MessagesState):
     jd: str
     sender: str
     new_cv: str
-    chat_history_summary: str
+    chat_history_summary: str = ""
+    last_index: int = 0
 
-from langchain_core.messages import RemoveMessage
 memo_instruction = """You are summarization expert. Combine the current summary and the given conversation into only brief summary.
 Remember to keep new summary short, brief in about 10-40 words, as short as possible.
 Here is the current summarization (it can be empty):
@@ -40,12 +40,19 @@ Here is the conversation to sum up:
 {conversation}"""
 def filter_and_save_messages(state, config, store):
     all_messages = state["messages"]
-    if len(all_messages) % 12 > 8:
+    last_index = state.get("last_index") or 0
+    not_sum_messages = all_messages[last_index:]
 
-        messages_to_sum = all_messages[-12:-6]
+    WINDOWSIZE = 6
+    MINNEWMESSAGESALLOW = 4
+    # print(len(all_messages), last_index, not_sum_messages)
 
+    if len(not_sum_messages) >= MINNEWMESSAGESALLOW + WINDOWSIZE:
+        messages_to_sum = not_sum_messages[:-(WINDOWSIZE)]
+        new_last_index = last_index + len(messages_to_sum)
+  
         # 1, Summarize messages:
-        print("-sum-")
+        print("-sum-thread-")
 
         current_summary = state.get("chat_history_summary", "")
         model = ChatTogether(
@@ -59,7 +66,7 @@ def filter_and_save_messages(state, config, store):
         )), HumanMessage("Do it")])
 
         # 2, if there is user_id, personalize
-        print("-save-")
+        print("-save_thread_db-")
 
         user_id = config["configurable"].get("user_id","")
         if user_id:
@@ -69,7 +76,8 @@ def filter_and_save_messages(state, config, store):
 
             store.put(namespace, "user_info", {"data": updated_summary.content})
             
-        return {"chat_history_summary": updated_summary.content}
+        
+        return Command(update = {"chat_history_summary": updated_summary.content, "last_index": new_last_index})
     else:
         # just pass
         return 
@@ -92,18 +100,19 @@ agent_instruction = """You are a helpful AI assistant, collaborating with other 
     If you have memory for this user, use it to personalize your responses.
     """.strip()
 
+from langchain_core.messages import trim_messages
 
 def main_agent(state, config: RunnableConfig, store):
     """
     Invokes the agent model to generate a response based on the current state. Given
     the question, it will decide to retrieve using the retriever tool, or simply end.
     """
-    print("---CALL AGENT---")        
-    messages = state["messages"][-6:]
-    print("n_mess: ", len(messages))
-
+    print("---CALL AGENT---")
+    last_index = state.get("last_index",0)        
+    messages = state["messages"][last_index:]    
     user_id = config["configurable"].get("user_id","")
     namespace = ("chat_history", user_id)
+    config["recursion_limit"] = 2
     # handle error
     if isinstance(messages[-1], ToolMessage):
         try:
@@ -117,15 +126,21 @@ def main_agent(state, config: RunnableConfig, store):
             pass
     
     print("memo: ", state.get("chat_history_summary", ""))
-    print("user_info: ", store.get(namespace, "user_info"))
+    print("user_info: ", store.get(namespace, "user_info") or "")
     
     model = ChatOpenAI(model="gpt-4o", temperature=0, api_key=os.environ["OPENAI_API_KEY"]) 
     model = model.bind_tools(tools)
+
+    if store.get(namespace, "user_info"):
+        user_info = store.get(namespace, "user_info").value["data"]
+    else:
+        user_info = ""
+
     response = model.invoke([SystemMessage(agent_instruction.format(
         tool_names = "\n".join([tool.name + ": " + tool.description for tool in tools]), 
         cv = state.get("cv", ""),
         jd = state.get("jd", ""),
-        user_info = store.get(namespace, "user_info"),
+        user_info = user_info,
         thread_memory = state.get("chat_history_summary", "")))] + messages)
     
     
@@ -135,11 +150,11 @@ def main_agent(state, config: RunnableConfig, store):
 # build graph
 def career_agent():
     workflow = StateGraph(AgentState)
-    workflow.add_node("filter", filter_and_save_messages)
     workflow.add_node("agent", main_agent)
+    workflow.add_node("filter", filter_and_save_messages)
     workflow.add_node('tools', tool_node)
-    workflow.set_entry_point("filter")
-    workflow.add_edge("filter", "agent")
+    workflow.set_entry_point("agent")
+    workflow.add_edge("agent","filter")
     workflow.add_conditional_edges(
         "agent",
         tools_condition, 
