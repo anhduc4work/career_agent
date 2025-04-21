@@ -7,12 +7,14 @@ from app_function import (check_available_thread,
                           fork_messages,
                           bot,
                           user,
-                          clear_checkpoint_in_config)
+                          clear_checkpoint_in_config,
+                          update_underthehood_ui)
+
 
 ################## UI ##################
 initial_user_id = "Default User"
-initial_thread_id = "Default Thread"
-# db_add(initial_user_id, initial_thread_id)
+initial_thread_id = "1"
+db_add(initial_user_id, initial_thread_id)
 
 with gr.Blocks(fill_width=True) as demo:
     
@@ -28,7 +30,7 @@ with gr.Blocks(fill_width=True) as demo:
                         value=initial_user_id, choices=[initial_user_id],
                         label="User ID", interactive=True, allow_custom_value=True
                     )
-                    add_user = gr.Button("+", scale=0, size="sm")
+                    add_user = gr.Button("+", scale=0, size="sm",)
 
                 with gr.Row():
                     thread_choices_state = gr.State([initial_thread_id])  # Gradio state to track the choices
@@ -44,24 +46,23 @@ with gr.Blocks(fill_width=True) as demo:
                 chatbot = gr.Chatbot(type="messages", show_copy_button=True, editable="user")
                 msg = gr.MultimodalTextbox(file_types=[".pdf"], show_label=False, placeholder="Input chat")
 
-    with gr.Tab("Underthehood"):
+    with gr.Tab("Underthehood") as tab2:
 
-        with gr.Row() as row3:
-            gr.Markdown("# Underthehood")
-            reload_new_cv_button = gr.Button("Reload")
-            download_cv_button = gr.Button("Download")
-
-        with gr.Row() as row4:
+        with gr.Column():
+            cross_thread_info = gr.Textbox(label="User Info (Cross Thread)", interactive=False, visible=True)
+            single_thread_summary = gr.Textbox(label="Thread Summary", interactive=False, visible=True)
+        
+        with gr.Row():
             cv_text = gr.Textbox(label="CV Content", interactive=True, visible=True)
             new_cv_text = gr.Textbox(label="Reviewed CV", interactive=False, visible=True)
 
 
-        # cp = gr.HighlightedText(
-        #         label="Diff",
-        #         combine_adjacent=True,
-        #         show_legend=True,
-        #         # color_map={"+": "green"},
-        #         min_width=800)
+        cp = gr.HighlightedText(
+                label="Diff",
+                combine_adjacent=True,
+                show_legend=True,
+                # color_map={"+": "green"},
+                min_width=800)
             
 
 
@@ -98,7 +99,9 @@ with gr.Blocks(fill_width=True) as demo:
     msg.submit(user, [msg, chatbot], [msg, chatbot]).\
         then(bot, [config, chatbot], [chatbot])  # 
         
-    # reload_new_cv_button.click(check_for_new_cv, inputs=[config], outputs=[new_cv_text])
+    # show backend
+    tab2.select(update_underthehood_ui, [config], [new_cv_text, single_thread_summary, cross_thread_info])
+   
     # compare new cv and old one
     # new_cv_text.change(diff_texts, [cv_text, new_cv_text], [cp])
     

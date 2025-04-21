@@ -4,8 +4,15 @@ import uuid
 import time
 import gradio as gr
 
-from main_agent import career_agent
-react_graph_memory = career_agent()
+from main_agent import CareerAgent
+from tools import tools
+
+pg_uri = "postgresql://anhduc213:200103@localhost:5432/postgres?sslmode=disable"
+agent = CareerAgent(tools, pg_uri)
+agent.setup_memory_and_store()
+agent.build()
+graph = agent.get_graph()
+
 
 
 def process_file(cv_path):
@@ -29,20 +36,27 @@ def show():
 
 def check_for_new_cv(config):
     """Check new CV"""
-    return react_graph_memory.get_state(config).values.get("new_cv", "Not available")
+    return graph.get_state(config).values.get("new_cv", "Not available")
 
 def check_for_thread_summary(config):
     """Check thread summary"""
-    return react_graph_memory.get_state(config).values.get("new_cv", "Not available")
+    return graph.get_state(config).values.get("chat_history_summary", "Not available")
 
 def check_for_user_info_cross_thread(config):
     """Check user info"""
-    return react_graph_memory.get_state(config).values.get("new_cv", "Not available")
+    user_id = config["configurable"]["user_id"]
+    info = graph.store.get(("chat_history", user_id), "user_info")
+    if info:
+        return info.value["data"]
+    else:
+        return "Not Available"
+def update_underthehood_ui(config):
+    return check_for_new_cv(config), check_for_thread_summary(config), check_for_user_info_cross_thread(config)
 
 def update_config_and_ui(thread_id, user_id):
     """Update interface to fit config (user_id and thread id)"""
     config = {"configurable":{"thread_id": thread_id, "user_id": user_id}}
-    state = react_graph_memory.get_state(config).values
+    state = graph.get_state(config).values
     chat_history = []
     if state:
         for mess in state["messages"]:
@@ -87,7 +101,7 @@ def bot(config, chat_history):
             "messages": [HumanMessage(last_message["content"], id = last_message["metadata"]["id"])],
         }
     print(config)
-    bot_message = react_graph_memory.invoke(state, config)
+    bot_message = graph.invoke(state, config)
 
     chat_history.append({"role": "assistant", "content": "", "metadata": {"id":bot_message["messages"][-1].id}})
     for character in bot_message["messages"][-1].content:
@@ -107,7 +121,7 @@ def handle_edit(history, edit_data: gr.EditData):
 
 def fork_messages(config, chat_history):
     """Edit backend messages and return the ready state from history to invoke"""
-    hist = react_graph_memory.get_state_history(config)
+    hist = graph.get_state_history(config)
     last_message = chat_history[-1]
 
     for i, s in enumerate(hist):
@@ -119,7 +133,7 @@ def fork_messages(config, chat_history):
                 break
 
     # update
-    fork_config = react_graph_memory.update_state(to_fork,
+    fork_config = graph.update_state(to_fork,
                         {"messages": [HumanMessage(content=last_message["content"], 
                                id=last_message["metadata"]["id"])]},)
     
