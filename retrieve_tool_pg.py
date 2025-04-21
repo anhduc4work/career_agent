@@ -1,6 +1,6 @@
 from langchain_postgres import PGVector
 
-connection = "postgresql+psycopg://anhduc213:200103@localhost:5432/postgres"  
+connection = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"  
 collection_name = "scholar2"
 
 from langchain_ollama import OllamaEmbeddings

@@ -3,12 +3,14 @@ from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, Human
 import uuid
 import time
 import gradio as gr
-
+import dotenv
+dotenv.load_dotenv()
 from main_agent import CareerAgent
 from tools import tools
+import os
 
-pg_uri = "postgresql://anhduc213:200103@localhost:5432/postgres?sslmode=disable"
-agent = CareerAgent(tools, pg_uri)
+PG_URI = "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+agent = CareerAgent(tools, PG_URI)
 agent.setup_memory_and_store()
 agent.build()
 graph = agent.get_graph()
@@ -167,7 +169,7 @@ def db_add(user_id, thread_id):
     print("---add db---")
 
     from psycopg import connect
-    conn = connect("dbname=postgres user=anhduc213 password=200103 host=localhost port=5432", autocommit=True)
+    conn = connect(PG_URI, autocommit=True)
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO user_thread (user_id, thread_id)
@@ -180,7 +182,7 @@ def check_available_thread(user_id):
     print("---check thread---")
 
     from psycopg import connect
-    conn = connect("dbname=postgres user=anhduc213 password=200103 host=localhost port=5432", autocommit=True)
+    conn = connect(PG_URI, autocommit=True)
     cursor = conn.cursor()
     cursor.execute(f"""SELECT * FROM user_thread WHERE user_id = %s""", (user_id,))
     rows = cursor.fetchall()
