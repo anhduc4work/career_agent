@@ -47,11 +47,17 @@ def check_for_thread_summary(config):
 def check_for_user_info_cross_thread(config):
     """Check user info"""
     user_id = config["configurable"]["user_id"]
-    info = graph.store.get(("chat_history", user_id), "user_info")
-    if info:
-        return info.value["data"]
+    namespace = ("user_info", user_id)
+    user_info = graph.store.search(namespace)
+    # for m in user_info:
+    #     print(m.dict())
+        
+    if user_info:
+        user_info = "\n".join(f"{idx+1}: {item.value['content']}" for idx, item in enumerate(user_info))
+        return user_info
     else:
         return "Not Available"
+    
 def update_underthehood_ui(config):
     return check_for_new_cv(config), check_for_thread_summary(config), check_for_user_info_cross_thread(config)
 
